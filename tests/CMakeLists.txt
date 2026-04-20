@@ -55,3 +55,14 @@ target_link_libraries(engine_tests PRIVATE
 )
 
 gtest_discover_tests(engine_tests)
+
+add_executable(persist_tests
+    test_persist.cpp
+)
+
+target_link_libraries(persist_tests PRIVATE
+    persist
+    GTest::gtest_main
+)
+
+gtest_discover_tests(persist_tests)
