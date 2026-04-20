@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.eccyan.slmfs-fuse</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__SLMFS_PYTHON__</string>
+        <string>-m</string>
+        <string>slmfs</string>
+        <string>fuse</string>
+        <string>--mount=__SLMFS_MOUNT_POINT__</string>
+        <string>--shm-name=slmfs_shm</string>
+    </array>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>__SLMFS_LOG_DIR__/slmfs-fuse.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__SLMFS_LOG_DIR__/slmfs-fuse.err</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin</string>
+        <key>FUSE_LIBRARY_PATH</key>
+        <string>/usr/local/lib/libfuse-t.dylib</string>
+    </dict>
+
+    <!-- Start after engine is running -->
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+</dict>
+</plist>
