@@ -53,6 +53,28 @@ src/
 
 All libraries are C++ static libraries with public include directories. Each is independently testable via Google Test.
 
+## Agent Memory (SLMFS)
+
+SLMFS is running as a background service on this machine. Use it to persist and retrieve long-term memories across sessions.
+
+**Read active memories** (passive, no side effects):
+```bash
+cat ~/.agent_memory/active.md
+```
+
+**Search for relevant context** (activates matched nodes):
+```bash
+cat ~/.agent_memory/search/<query>.md
+```
+Use underscores for spaces: `cat ~/.agent_memory/search/deployment_config.md`
+
+**Write a new memory**:
+```bash
+echo "learned something important" > ~/.agent_memory/active.md
+```
+
+Before starting work, read `~/.agent_memory/active.md` to check for relevant context from prior sessions. When you learn something that would be useful in future sessions, write it to active.md.
+
 ## Naming Conventions
 
 - C++ namespaces: `slm::slab`, `slm::metric`, `slm::langevin`, `slm::sheaf`, `slm::engine`, `slm::persist`

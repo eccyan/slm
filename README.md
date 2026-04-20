@@ -131,41 +131,104 @@ cd build && ctest --output-on-failure
 cd python && pytest ../tests/python/ -v
 ```
 
+### Quick Install
+
+```bash
+# One-command install (builds, tests, installs service)
+./install.sh
+```
+
+This will:
+1. Install dependencies (cmake, sqlite3, FUSE-T on macOS / libfuse3 on Linux)
+2. Build the C++23 engine
+3. Run all tests (133 C++ + 20 Python)
+4. Install the engine binary to `~/.local/bin/`
+5. Register background services (launchd on macOS, systemd on Linux)
+
 ### Usage
 
 ```bash
 # 1. Migrate existing notes into the Poincare memory space
-python -m slmfs init ~/MEMORY.md ~/notes/*.md
+python -m slmfs init --db-path=~/.slmfs/memory.db ~/MEMORY.md ~/notes/*.md
 
 # 2. Start the C++ engine daemon
-./build/src/engine/slmfs_engine --db-path=.slmfs/memory.db --shm-name=slmfs_shm
+slmfs_engine --db-path=~/.slmfs/memory.db
 
 # 3. Mount the FUSE filesystem
-python -m slmfs fuse --mount=.agent_memory
+python -m slmfs fuse --mount=~/.agent_memory
 
 # 4. Agent interacts normally
-cat .agent_memory/active.md
-echo "New memory" >> .agent_memory/active.md
-cat .agent_memory/search/deployment_notes.md
+cat ~/.agent_memory/active.md
+echo "New memory" > ~/.agent_memory/active.md
+cat ~/.agent_memory/search/deployment_notes.md
 
 # 5. Bulk ingest a large reference document into the running engine
 python -m slmfs add reference_docs.md
 ```
 
+> **Note:** If you ran `install.sh`, steps 2-3 are already running as background services.
+
+### Integrating with Claude Code
+
+SLMFS is designed to be a drop-in long-term memory for Claude Code sessions. After installing, add the following to your project's `CLAUDE.md` (or `~/.claude/CLAUDE.md` for global use):
+
+```markdown
+## Agent Memory (SLMFS)
+
+SLMFS is running as a background service. Use it to persist and retrieve
+long-term memories across sessions.
+
+**Read active memories** (passive, no side effects):
+\`\`\`bash
+cat ~/.agent_memory/active.md
+\`\`\`
+
+**Search for relevant context** (activates matched nodes):
+\`\`\`bash
+cat ~/.agent_memory/search/<query>.md
+\`\`\`
+Use underscores for spaces: `cat ~/.agent_memory/search/deployment_config.md`
+
+**Write a new memory**:
+\`\`\`bash
+echo "learned something important" > ~/.agent_memory/active.md
+\`\`\`
+
+Before starting work, read `~/.agent_memory/active.md` to check for relevant
+context from prior sessions. When you learn something that would be useful in
+future sessions, write it to active.md.
+```
+
+This works because Claude Code can run `cat` and `echo` — the FUSE layer transparently handles embedding, retrieval, and the Langevin physics underneath.
+
 ### Multi-Project Isolation
 
-Each project can run its own independent "brain" by specifying unique shared memory and database paths:
+Each project can run its own independent "brain" by specifying unique file paths:
 
 ```bash
 # Project A
-slmfs_engine --shm-name=projA_shm --db-path=~/work/projA/.slmfs/memory.db
+slmfs_engine --shm-path=~/work/projA/.slmfs/ipc_shm.bin --db-path=~/work/projA/.slmfs/memory.db
 
 # Project B (completely independent Poincare disk)
-slmfs_engine --shm-name=projB_shm --db-path=~/work/projB/.slmfs/memory.db
+slmfs_engine --shm-path=~/work/projB/.slmfs/ipc_shm.bin --db-path=~/work/projB/.slmfs/memory.db
 ```
 
-### Service Management (systemd)
+### Service Management
 
+**macOS (launchd)** — installed automatically by `install.sh`:
+```bash
+# Status
+launchctl list | grep slmfs
+
+# Stop
+launchctl unload ~/Library/LaunchAgents/com.eccyan.slmfs.plist
+launchctl unload ~/Library/LaunchAgents/com.eccyan.slmfs-fuse.plist
+
+# Restart
+launchctl unload ~/Library/LaunchAgents/com.eccyan.slmfs.plist && launchctl load ~/Library/LaunchAgents/com.eccyan.slmfs.plist
+```
+
+**Linux (systemd)**:
 ```bash
 # Install the user service
 cp config/slmfs-engine.service ~/.config/systemd/user/
