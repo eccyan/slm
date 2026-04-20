@@ -247,3 +247,62 @@ TEST(Annotation, FormatQuotesInText) {
     EXPECT_NE(result.find("said \\\"hello\\\""), std::string::npos);
     EXPECT_NE(result.find("said \\\"goodbye\\\""), std::string::npos);
 }
+
+// --- Integration: full contradiction detection flow ---
+
+TEST(SheafIntegration, DetectAndAnnotateContradiction) {
+    std::vector<float> mu_new = {0.9f, 0.1f, 0.0f, 0.0f};
+    std::vector<float> mu_old = {0.1f, 0.9f, 0.0f, 0.0f};
+    std::vector<float> zero_rel = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    Neighborhood hood;
+    hood.new_node_mu = mu_new;
+    hood.new_node_text = "proxy IP is 10.0.0.5";
+    hood.neighbor_mus = {std::vector<float>(mu_old.begin(), mu_old.end())};
+    hood.neighbor_texts = {"proxy IP is 10.0.0.1"};
+    hood.edges = {{0, EdgeType::Structural, zero_rel}};
+
+    // Step 1: Compute coboundary
+    CoboundaryOperator op;
+    auto result = op.compute_local(hood, 0.5f);
+
+    ASSERT_GT(result.norm, 0.5f) << "Should detect contradiction";
+    ASSERT_EQ(result.conflicting.size(), 1u);
+    EXPECT_EQ(result.conflicting[0], 0u);
+
+    // Step 2: Generate annotation for each conflicting neighbor
+    for (auto neighbor_idx : result.conflicting) {
+        Annotation ann;
+        ann.superseded_text = hood.neighbor_texts[neighbor_idx];
+        ann.superseding_text = hood.new_node_text;
+        ann.delta_norm = result.norm;
+
+        std::string annotation = format_annotation(ann);
+
+        EXPECT_NE(annotation.find("proxy IP is 10.0.0.1"), std::string::npos);
+        EXPECT_NE(annotation.find("proxy IP is 10.0.0.5"), std::string::npos);
+        EXPECT_NE(annotation.find("δ-norm="), std::string::npos);
+        EXPECT_EQ(annotation.substr(0, 5), "<!-- ");
+        EXPECT_EQ(annotation.substr(annotation.size() - 4), " -->");
+    }
+}
+
+TEST(SheafIntegration, NoContradictionNoAnnotation) {
+    std::vector<float> mu_new = {1.0f, 0.0f, 0.0f};
+    std::vector<float> mu_old = {0.0f, 1.0f, 0.0f};
+    std::vector<float> rel = {1.0f, -1.0f, 0.0f};
+
+    Neighborhood hood;
+    hood.new_node_mu = mu_new;
+    hood.new_node_text = "new fact";
+    hood.neighbor_mus = {std::vector<float>(mu_old.begin(), mu_old.end())};
+    hood.neighbor_texts = {"old fact"};
+    hood.edges = {{0, EdgeType::Structural, rel}};
+
+    CoboundaryOperator op;
+    auto result = op.compute_local(hood, 0.5f);
+
+    EXPECT_NEAR(result.norm, 0.0f, 1e-5f);
+    EXPECT_TRUE(result.conflicting.empty())
+        << "Consistent nodes should produce no contradictions";
+}
