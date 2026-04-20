@@ -203,6 +203,66 @@ chmod +x "$INSTALL_DIR/slmfs_engine"
 
 ok "Engine installed to ${INSTALL_DIR}/slmfs_engine"
 
+# ── Install service ──
+
+DB_PATH="${HOME}/.slmfs/memory.db"
+LOG_DIR="${HOME}/.slmfs/logs"
+mkdir -p "$(dirname "$DB_PATH")" "$LOG_DIR"
+
+install_service_macos() {
+    local PLIST_SRC="config/com.eccyan.slmfs.plist"
+    local PLIST_DST="${HOME}/Library/LaunchAgents/com.eccyan.slmfs.plist"
+
+    if [ ! -f "$PLIST_SRC" ]; then
+        warn "Plist template not found, skipping service install"
+        return
+    fi
+
+    # Unload existing service if running
+    launchctl unload "$PLIST_DST" 2>/dev/null || true
+
+    # Generate plist with actual paths
+    sed -e "s|__SLMFS_ENGINE_PATH__|${INSTALL_DIR}/slmfs_engine|g" \
+        -e "s|__SLMFS_DB_PATH__|${DB_PATH}|g" \
+        -e "s|__SLMFS_LOG_DIR__|${LOG_DIR}|g" \
+        "$PLIST_SRC" > "$PLIST_DST"
+
+    launchctl load "$PLIST_DST"
+    ok "macOS service installed: com.eccyan.slmfs"
+    info "  Logs: ${LOG_DIR}/slmfs-engine.{log,err}"
+    info "  Stop: launchctl unload ${PLIST_DST}"
+}
+
+install_service_linux() {
+    local SERVICE_SRC="config/slmfs-engine.service"
+    local SERVICE_DIR="${HOME}/.config/systemd/user"
+    local SERVICE_DST="${SERVICE_DIR}/slmfs-engine.service"
+
+    if [ ! -f "$SERVICE_SRC" ]; then
+        warn "Service template not found, skipping service install"
+        return
+    fi
+
+    mkdir -p "$SERVICE_DIR"
+    cp "$SERVICE_SRC" "$SERVICE_DST"
+
+    if systemctl --user daemon-reload 2>/dev/null; then
+        systemctl --user enable slmfs-engine 2>/dev/null || true
+        systemctl --user start slmfs-engine 2>/dev/null || true
+        ok "Linux service installed: slmfs-engine"
+        info "  Status: systemctl --user status slmfs-engine"
+        info "  Stop:   systemctl --user stop slmfs-engine"
+    else
+        warn "systemd --user not available (container/CI?). Service file installed but not started."
+        info "  Start manually: slmfs_engine --db-path=${DB_PATH}"
+    fi
+}
+
+case "$OS" in
+    Darwin) install_service_macos ;;
+    Linux)  install_service_linux ;;
+esac
+
 # ── Summary ──
 
 REPO_DIR="$(pwd)"
@@ -218,10 +278,10 @@ echo -e "${BOLD}Quick start:${NC}"
 echo "  # 1. Migrate existing notes"
 echo "  cd ${REPO_DIR}"
 echo "  source python/.venv/bin/activate"
-echo "  python -m slmfs init ~/MEMORY.md"
+echo "  python -m slmfs init --db-path=${DB_PATH} ~/MEMORY.md"
 echo ""
-echo "  # 2. Start engine"
-echo "  slmfs_engine --db-path=.slmfs/memory.db"
+echo "  # 2. Engine is running as a background service"
+echo "  #    (auto-starts on login, restarts on crash)"
 echo ""
 echo "  # 3. Mount filesystem (requires FUSE)"
 echo "  python -m slmfs fuse --mount=.agent_memory"
