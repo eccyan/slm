@@ -2,7 +2,6 @@
 #include <slab/ring_buffer.hpp>
 #include <thread>
 #include <vector>
-#include <numeric>
 
 using namespace slm::slab;
 
