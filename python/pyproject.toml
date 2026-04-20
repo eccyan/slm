@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slmfs"
+version = "0.1.0"
+description = "SLMFS — AI agent memory filesystem"
+requires-python = ">=3.10"
+dependencies = [
+    "fusepy>=3.0",
+    "sentence-transformers>=2.2",
+    "mistune>=3.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["../tests/python"]

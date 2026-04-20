@@ -1,0 +1,14 @@
+[Unit]
+Description=SLMFS Memory C++ Backend Engine
+Before=slmfs-fuse.service
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/slmfs_engine --db-path=%h/.slmfs/memory.db --shm-name=slmfs_shm
+Restart=on-failure
+LimitMEMLOCK=infinity
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target

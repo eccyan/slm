@@ -39,3 +39,14 @@
 
 # debug information files
 *.dwo
+
+# Build directories
+build/
+cmake-build-*/
+.cache/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
