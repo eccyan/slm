@@ -271,3 +271,96 @@ TEST(LangevinStep, MultipleNodesIndependent) {
     EXPECT_GT(nodes[2].pos.radius(), nodes[1].pos.radius());
     EXPECT_GT(nodes[1].pos.radius(), nodes[0].pos.radius());
 }
+
+// --- Integration: full lifecycle ---
+
+TEST(LangevinIntegration, FullLifecycle) {
+    LangevinStepper stepper({.dt = 5.0f, .lambda_decay = 0.05f,
+                              .noise_scale = 0.0f, .archive_threshold = 0.95f});
+    std::mt19937 rng(42);
+
+    // Ingest a node near the center with a small offset for drift direction
+    NodeState node{};
+    node.pos = {0.01f, 0.0f};
+    node.last_access_time = 0.0;
+    node.access_count = 0;
+    std::vector<NodeState> nodes = {node};
+
+    // Simulate ticks until archived (or max 200 ticks)
+    double t = 0.0;
+    std::vector<uint32_t> archived;
+    std::vector<float> radius_history;
+
+    for (int tick = 0; tick < 200 && archived.empty(); ++tick) {
+        t += 5.0;
+        archived = stepper.step(nodes, t, rng);
+        radius_history.push_back(nodes[0].pos.radius());
+    }
+
+    // The node should have drifted outward monotonically (no noise)
+    for (size_t j = 1; j < radius_history.size(); ++j) {
+        EXPECT_GE(radius_history[j], radius_history[j - 1] - 1e-6f)
+            << "Radius should monotonically increase at tick " << j;
+    }
+
+    // Should eventually be archived
+    EXPECT_FALSE(archived.empty())
+        << "Node should be archived after sufficient ticks without access";
+}
+
+TEST(LangevinIntegration, ActivationResetsLifecycle) {
+    LangevinStepper stepper({.dt = 1.0f, .lambda_decay = 0.01f,
+                              .noise_scale = 0.0f, .archive_threshold = 0.95f});
+    std::mt19937 rng(42);
+
+    NodeState node{};
+    node.pos = {0.01f, 0.0f};
+    node.last_access_time = 0.0;
+    std::vector<NodeState> nodes = {node};
+
+    // Drift for 20 ticks
+    double t = 0.0;
+    for (int tick = 0; tick < 20; ++tick) {
+        t += 1.0;
+        stepper.step(nodes, t, rng);
+    }
+    float radius_before_activation = nodes[0].pos.radius();
+    EXPECT_GT(radius_before_activation, 0.01f)
+        << "Should have drifted outward";
+
+    // Activate (simulate agent reading the memory)
+    LangevinStepper::activate(nodes[0], t);
+    EXPECT_FLOAT_EQ(nodes[0].pos.radius(), 0.0f)
+        << "Activation should reset to center";
+
+    // Give a small offset again for drift direction
+    nodes[0].pos = {0.01f, 0.0f};
+
+    // Drift again for only 10 ticks (half the original duration)
+    for (int tick = 0; tick < 10; ++tick) {
+        t += 1.0;
+        stepper.step(nodes, t, rng);
+    }
+    float radius_after_reactivation = nodes[0].pos.radius();
+
+    // Should have drifted less than before (only 10 ticks vs 20 ticks)
+    EXPECT_LT(radius_after_reactivation, radius_before_activation)
+        << "Reactivated node should drift less (shorter time since access)";
+}
+
+TEST(LangevinIntegration, CohomologyDriftPenalty) {
+    // Simulate cohomology integration: superseded node repositioned to (0.0, 0.93)
+    LangevinStepper stepper({.dt = 5.0f, .lambda_decay = 0.05f,
+                              .noise_scale = 0.0f, .archive_threshold = 0.95f});
+    std::mt19937 rng(42);
+
+    NodeState node{};
+    node.pos = {0.0f, 0.93f};  // Near archive threshold
+    node.last_access_time = 0.0;
+    std::vector<NodeState> nodes = {node};
+
+    // One tick should push it past the threshold
+    auto archived = stepper.step(nodes, 100.0, rng);
+    EXPECT_EQ(archived.size(), 1u)
+        << "Node placed at r=0.93 with old access should archive in one tick";
+}
