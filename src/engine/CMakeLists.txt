@@ -17,3 +17,8 @@ add_executable(slmfs_engine
 )
 
 target_link_libraries(slmfs_engine PRIVATE engine)
+
+# POSIX shared memory requires -lrt on Linux
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(slmfs_engine PRIVATE rt)
+endif()

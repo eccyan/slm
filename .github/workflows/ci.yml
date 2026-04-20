@@ -8,20 +8,33 @@ on:
 
 jobs:
   cpp-tests:
-    name: C++ Tests
+    name: C++ Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-24.04
+            compiler: g++-14
+            install: sudo apt-get update && sudo apt-get install -y g++-14 libsqlite3-dev
+            env_cc: gcc-14
+            env_cxx: g++-14
+          - os: macos-14
+            compiler: clang++
+            install: ""
+            env_cc: clang
+            env_cxx: clang++
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies (Ubuntu)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - name: Install dependencies
+        if: matrix.install != ''
+        run: ${{ matrix.install }}
 
       - name: Configure
+        env:
+          CC: ${{ matrix.env_cc }}
+          CXX: ${{ matrix.env_cxx }}
         run: cmake -B build -DCMAKE_BUILD_TYPE=Debug
 
       - name: Build
