@@ -11,7 +11,7 @@ import numpy as np
 from fuse import FUSE, FuseOSError, Operations
 
 from .config import SlmfsConfig
-from .cooker import cook_write, cook_read, CMD_READ, CMD_WRITE_COMMIT
+from .cooker import cook_write, cook_read, CMD_READ, CMD_READ_ACTIVE, CMD_WRITE_COMMIT
 from .embedder import MiniLMEmbedder
 from .shm_client import ShmClient
 
@@ -74,20 +74,22 @@ class SlmfsFS(Operations):
         raise FuseOSError(errno.ENOENT)
 
     def _read_active(self, size, offset):
-        zero_query = np.zeros(self.embedder.dim, dtype=np.float32)
-        return self._submit_read(zero_query, size, offset)
+        # Passive read — no search, no activation, no mutation
+        return self._submit_command(CMD_READ_ACTIVE, b"", size, offset)
 
     def _read_search(self, query: str, size, offset):
+        # Search read — top-k + activate matched nodes
         embedding = self.embedder.embed(query.replace("_", " "))
-        return self._submit_read(embedding, size, offset)
-
-    def _submit_read(self, embedding, size, offset):
         payload = cook_read(embedding)
+        return self._submit_command(CMD_READ, payload, size, offset)
+
+    def _submit_command(self, cmd, payload, size, offset):
         slab_idx = self.shm.acquire_slab()
         if slab_idx is None:
             raise FuseOSError(errno.ENOMEM)
-        self.shm.write_to_slab(slab_idx, payload)
-        handle = (CMD_READ << 24) | slab_idx
+        if payload:
+            self.shm.write_to_slab(slab_idx, payload)
+        handle = (cmd << 24) | slab_idx
         if not self.shm.push_handle_blocking(handle):
             self.shm.release_slab(slab_idx)
             return b""
