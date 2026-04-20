@@ -3,7 +3,6 @@
 #include <slab/header.hpp>
 #include <cstring>
 #include <set>
-#include <vector>
 
 using namespace slm::slab;
 
