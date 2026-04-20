@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: slmfs
+Version: 0.1.0
+Summary: SLMFS — AI agent memory filesystem
+Requires-Python: >=3.10
+Requires-Dist: fusepy>=3.0
+Requires-Dist: sentence-transformers>=2.2
+Requires-Dist: mistune>=3.0
+Requires-Dist: numpy>=1.24
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"

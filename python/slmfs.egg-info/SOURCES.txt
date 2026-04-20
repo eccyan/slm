@@ -1,0 +1,8 @@
+pyproject.toml
+slmfs/__init__.py
+slmfs/config.py
+slmfs.egg-info/PKG-INFO
+slmfs.egg-info/SOURCES.txt
+slmfs.egg-info/dependency_links.txt
+slmfs.egg-info/requires.txt
+slmfs.egg-info/top_level.txt
