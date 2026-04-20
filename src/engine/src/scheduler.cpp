@@ -75,9 +75,12 @@ void Scheduler::process_tier1() {
             slab_.release(slab_idx);
             break;
         case slab::CMD_READ:
-            // Do NOT release — the client owns the slab until it reads
-            // the DONE response and calls release_slab() itself.
+            // Search read: top-k + activate. Client owns slab until DONE.
             handle_read(slab_idx);
+            break;
+        case slab::CMD_READ_ACTIVE:
+            // Passive read: active nodes only, no mutation. Client owns slab.
+            handle_read_active(slab_idx);
             break;
         }
     }
@@ -111,9 +114,9 @@ void Scheduler::handle_write_commit(uint32_t slab_idx) {
     cohomology_pending_.push_back(node_id);
 }
 
-void Scheduler::handle_read(uint32_t slab_idx) {
+void Scheduler::handle_read_active(uint32_t slab_idx) {
+    // Passive read: gather active nodes (r < threshold), no mutation.
     auto span = slab_.get(slab_idx);
-    const auto& hdr = slab_.header(slab_idx);
 
     std::string result;
     for (auto id : graph_.all_ids()) {
@@ -127,6 +130,16 @@ void Scheduler::handle_read(uint32_t slab_idx) {
             }
         }
     }
+
+    write_response(slab_idx, span, result);
+}
+
+void Scheduler::handle_read(uint32_t slab_idx) {
+    // Search read: top-k retrieval + activate matched nodes.
+    auto span = slab_.get(slab_idx);
+    const auto& hdr = slab_.header(slab_idx);
+
+    std::string result;
 
     if (hdr.vector_dim > 0) {
         const float* query_ptr = reinterpret_cast<const float*>(
@@ -152,18 +165,29 @@ void Scheduler::handle_read(uint32_t slab_idx) {
 
             for (auto idx : top_indices) {
                 auto id = candidate_ids[idx];
-                langevin::LangevinStepper::activate(graph_.state(id),
-                                                     current_time());
-                graph_.state(id).access_count++;
 
-                if (graph_.state(id).pos.radius() >= config_.active_radius) {
-                    result += graph_.text(id);
+                // Append to result BEFORE activate (which resets radius to 0)
+                result += graph_.text(id);
+                result += "\n";
+                const auto& ann = graph_.annotation(id);
+                if (!ann.empty()) {
+                    result += ann;
                     result += "\n";
                 }
+
+                // Now activate: pull to center + increment access count
+                langevin::LangevinStepper::activate(graph_.state(id),
+                                                     current_time());
             }
         }
     }
 
+    write_response(slab_idx, span, result);
+}
+
+void Scheduler::write_response(uint32_t slab_idx,
+                                std::span<std::byte> span,
+                                const std::string& result) {
     auto* resp_hdr = reinterpret_cast<slab::MemoryFSHeader*>(span.data());
     resp_hdr->magic = slab::MEMFS_DONE;
     resp_hdr->text_offset = 64;

@@ -6,8 +6,9 @@ import numpy as np
 # Constants matching src/slab/include/slab/header.hpp
 MAGIC = 0x4D454D46          # 'MEMF' little-endian
 DONE_MAGIC = 0x444F4E45     # 'DONE' little-endian
-CMD_READ = 0x01
-CMD_WRITE_COMMIT = 0x02
+CMD_READ = 0x01             # search read (top-k + activate)
+CMD_WRITE_COMMIT = 0x02     # ingest new memory
+CMD_READ_ACTIVE = 0x03      # passive read (active nodes only, no mutation)
 HEADER_SIZE = 64
 
 

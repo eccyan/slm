@@ -100,6 +100,13 @@ echo "The new proxy IP is 10.0.0.5" >> .agent_memory/active.md
 * GCC 13+ or Clang 16+ (C++23 support)
 * SQLite3
 * Python 3.10+ (with `fusepy`, `sentence-transformers`)
+* FUSE support (for the filesystem mount):
+  * **Linux:** `sudo apt install libfuse3-dev`
+  * **macOS:** [FUSE-T](https://github.com/macos-fuse-t/fuse-t) (recommended) — `brew install macos-fuse-t/homebrew-cask/fuse-t`
+    * FUSE-T implements libfuse via a local NFSv4 loopback — no kernel extensions, no Recovery Mode, works on Apple Silicon out of the box
+    * macFUSE also works but requires kernel extension approval and reboots
+
+> **Note:** FUSE is only needed for the transparent filesystem mount (`cat .agent_memory/active.md`). The engine, `slmfs init`, and `slmfs add` all work without FUSE installed.
 
 ### Building the C++ Engine
 

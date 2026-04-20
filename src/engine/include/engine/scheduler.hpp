@@ -54,6 +54,9 @@ private:
 
     void handle_write_commit(uint32_t slab_idx);
     void handle_read(uint32_t slab_idx);
+    void handle_read_active(uint32_t slab_idx);
+    void write_response(uint32_t slab_idx, std::span<std::byte> span,
+                        const std::string& result);
 
     double current_time() const;
 

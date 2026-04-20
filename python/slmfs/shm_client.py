@@ -11,10 +11,13 @@ Safety model:
   sets bits. Both are idempotent OR operations on disjoint bits, so no conflict.
 """
 
-import ctypes
+import fcntl
+import os
 import struct
+import tempfile
 import time
 from multiprocessing import shared_memory
+from pathlib import Path
 from typing import Optional
 
 from .config import SlmfsConfig
@@ -44,6 +47,22 @@ class ShmClient:
     _RING_MASK = _RING_CAPACITY - 1
 
     def __init__(self, config: SlmfsConfig):
+        # Enforce single-producer: acquire an exclusive file lock.
+        # If another Python producer (FUSE or slmfs-add) is already running
+        # against this shm_name, this will raise immediately.
+        lock_path = Path(tempfile.gettempdir()) / f".slmfs_{config.shm_name}.lock"
+        self._lock_file = open(lock_path, "w")
+        try:
+            fcntl.flock(self._lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self._lock_file.write(str(os.getpid()))
+            self._lock_file.flush()
+        except OSError:
+            self._lock_file.close()
+            raise RuntimeError(
+                f"Another SLMFS producer is already connected to '{config.shm_name}'. "
+                f"Only one Python producer (FUSE or slmfs-add) may run at a time."
+            )
+
         self._shm = shared_memory.SharedMemory(
             name=config.shm_name, create=False
         )
@@ -54,8 +73,10 @@ class ShmClient:
         self._data_offset = config.control_block_size
 
     def close(self):
-        """Release the shared memory mapping (does not unlink)."""
+        """Release the shared memory mapping and producer lock."""
         self._shm.close()
+        fcntl.flock(self._lock_file, fcntl.LOCK_UN)
+        self._lock_file.close()
 
     def acquire_slab(self) -> Optional[int]:
         """Acquire a free slab. Returns slab index or None if pool exhausted.

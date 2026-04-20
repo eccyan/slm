@@ -11,8 +11,9 @@ inline constexpr uint32_t MEMFS_MAGIC = 0x4D454D46;
 inline constexpr uint32_t MEMFS_DONE = 0x444F4E45;
 
 /// Command types
-inline constexpr uint8_t CMD_READ = 0x01;
-inline constexpr uint8_t CMD_WRITE_COMMIT = 0x02;
+inline constexpr uint8_t CMD_READ = 0x01;          // search read (top-k + activate)
+inline constexpr uint8_t CMD_WRITE_COMMIT = 0x02;  // ingest new memory
+inline constexpr uint8_t CMD_READ_ACTIVE = 0x03;   // passive read (active nodes only, no mutation)
 
 /// Round `offset` up to the next multiple of `alignment`.
 /// `alignment` must be a power of 2.
