@@ -25,6 +25,7 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
 endif()
 
 add_subdirectory(src/slab)
+add_subdirectory(src/metric)
 
 # Testing
 option(SLM_BUILD_TESTS "Build tests" ON)
