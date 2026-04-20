@@ -205,6 +205,7 @@ ok "Engine installed to ${INSTALL_DIR}/slmfs_engine"
 
 # ── Install service ──
 
+REPO_ROOT="$(pwd)"
 DB_PATH="${HOME}/.slmfs/memory.db"
 LOG_DIR="${HOME}/.slmfs/logs"
 mkdir -p "$(dirname "$DB_PATH")" "$LOG_DIR"
@@ -228,9 +229,34 @@ install_service_macos() {
         "$PLIST_SRC" > "$PLIST_DST"
 
     launchctl load "$PLIST_DST"
-    ok "macOS service installed: com.eccyan.slmfs"
+    ok "macOS engine service installed: com.eccyan.slmfs"
     info "  Logs: ${LOG_DIR}/slmfs-engine.{log,err}"
     info "  Stop: launchctl unload ${PLIST_DST}"
+
+    # FUSE mount service
+    local FUSE_PLIST_SRC="config/com.eccyan.slmfs-fuse.plist"
+    local FUSE_PLIST_DST="${HOME}/Library/LaunchAgents/com.eccyan.slmfs-fuse.plist"
+    local MOUNT_POINT="${HOME}/.agent_memory"
+    local PYTHON_BIN="${REPO_ROOT}/python/.venv/bin/python"
+
+    if [ -f "$FUSE_PLIST_SRC" ] && [ -f /usr/local/lib/libfuse-t.dylib ]; then
+        launchctl unload "$FUSE_PLIST_DST" 2>/dev/null || true
+        mkdir -p "$MOUNT_POINT"
+
+        sed -e "s|__SLMFS_PYTHON__|${PYTHON_BIN}|g" \
+            -e "s|__SLMFS_MOUNT_POINT__|${MOUNT_POINT}|g" \
+            -e "s|__SLMFS_LOG_DIR__|${LOG_DIR}|g" \
+            "$FUSE_PLIST_SRC" > "$FUSE_PLIST_DST"
+
+        launchctl load "$FUSE_PLIST_DST"
+        ok "macOS FUSE service installed: com.eccyan.slmfs-fuse"
+        info "  Mount: ${MOUNT_POINT}"
+        info "  Logs:  ${LOG_DIR}/slmfs-fuse.{log,err}"
+        info "  Stop:  launchctl unload ${FUSE_PLIST_DST}"
+    elif [ ! -f /usr/local/lib/libfuse-t.dylib ]; then
+        warn "FUSE-T not installed — skipping FUSE mount service"
+        info "  Install: brew install macos-fuse-t/homebrew-cask/fuse-t"
+    fi
 }
 
 install_service_linux() {
@@ -265,7 +291,7 @@ esac
 
 # ── Summary ──
 
-REPO_DIR="$(pwd)"
+REPO_DIR="${REPO_ROOT}"
 
 echo ""
 echo -e "${BOLD}━━━ SLMFS installed successfully ━━━${NC}"
