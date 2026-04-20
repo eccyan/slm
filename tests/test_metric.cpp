@@ -324,3 +324,73 @@ TEST(FisherRaoTopK, KZero) {
     auto result = metric.top_k(query, candidates, 0);
     EXPECT_TRUE(result.empty());
 }
+
+// --- Integration: graduated sigma ramp ---
+
+TEST(FisherRaoIntegration, SigmaRampChangesDistance) {
+    constexpr uint32_t dim = 8;
+    std::vector<float> mu_p(dim, 0.0f);
+    std::vector<float> mu_q(dim, 0.0f);
+    mu_q[0] = 0.5f;
+
+    FisherRaoMetric metric;
+
+    float prev_distance = 0.0f;
+    for (uint32_t access = 0; access <= 10; access += 2) {
+        std::vector<float> sigma(dim);
+        fill_sigma(sigma, access);
+
+        GaussianNode p{mu_p, sigma, access};
+        GaussianNode q{mu_q, sigma, access};
+        float d = metric.distance(p, q);
+
+        if (access > 0) {
+            EXPECT_GT(d, prev_distance)
+                << "Distance should increase with access_count. "
+                << "access=" << access << " d=" << d << " prev=" << prev_distance;
+        }
+        prev_distance = d;
+    }
+
+    std::vector<float> sigma_max(dim, SIGMA_MAX);
+    GaussianNode p0{mu_p, sigma_max, 0};
+    GaussianNode q0{mu_q, sigma_max, 0};
+    float d_at_0 = metric.distance(p0, q0);
+
+    std::vector<float> sigma_min(dim, SIGMA_MIN);
+    GaussianNode p10{mu_p, sigma_min, 10};
+    GaussianNode q10{mu_q, sigma_min, 10};
+    float d_at_10 = metric.distance(p10, q10);
+
+    EXPECT_GT(d_at_10 / d_at_0, 10.0f)
+        << "Full geodesic should be >10x larger than cosine-like regime";
+}
+
+TEST(FisherRaoIntegration, TopKWithMixedAccessCounts) {
+    constexpr uint32_t dim = 4;
+    std::vector<float> mu_q = {1.0f, 0.0f, 0.0f, 0.0f};
+    std::vector<float> sigma_q(dim, SIGMA_MIN);
+    GaussianNode query{mu_q, sigma_q, 10};
+
+    std::vector<float> mu0 = {0.9f, 0.0f, 0.0f, 0.0f};
+    std::vector<float> sigma0(dim, SIGMA_MIN);
+
+    std::vector<float> mu1 = {0.0f, 1.0f, 0.0f, 0.0f};
+    std::vector<float> sigma1(dim, SIGMA_MAX);
+
+    std::vector<float> mu2 = {0.5f, 0.0f, 0.0f, 0.0f};
+    std::vector<float> sigma2(dim);
+    fill_sigma(sigma2, 5);
+
+    std::vector<GaussianNode> candidates = {
+        {mu0, sigma0, 10},
+        {mu1, sigma1, 0},
+        {mu2, sigma2, 5},
+    };
+
+    FisherRaoMetric metric;
+    auto result = metric.top_k(query, candidates, 3);
+    ASSERT_EQ(result.size(), 3u);
+
+    EXPECT_EQ(result[0], 0u);
+}
