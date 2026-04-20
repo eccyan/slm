@@ -47,6 +47,7 @@ gtest_discover_tests(sheaf_tests)
 
 add_executable(engine_tests
     test_memory_graph.cpp
+    test_scheduler.cpp
 )
 
 target_link_libraries(engine_tests PRIVATE
@@ -62,6 +63,7 @@ add_executable(persist_tests
 
 target_link_libraries(persist_tests PRIVATE
     persist
+    engine
     GTest::gtest_main
 )
 
