@@ -31,8 +31,9 @@ struct SchedulerFixture : public ::testing::Test {
     MemoryGraph graph;
     FisherRaoMetric metric;
     CoboundaryOperator sheaf;
-    LangevinStepper langevin{{.dt = 5.0f, .lambda_decay = 0.01f,
-                               .noise_scale = 0.0f, .archive_threshold = 0.95f}};
+    LangevinStepper langevin{{.dt = 5.0f, .lambda_decay = 5.0e-6f,
+                               .noise_scale = 0.0f, .archive_threshold = 0.95f,
+                               .thermal_kick_radius = 0.01f}};
     std::filesystem::path db_path;
     std::unique_ptr<SqliteStore> store;
 
@@ -103,8 +104,8 @@ TEST_F(SchedulerFixture, WriteCommitInsertsNode) {
     EXPECT_EQ(graph.text(ids[0]), "Hello from the agent");
     EXPECT_EQ(graph.parent_id(ids[0]), 0u);
 
-    EXPECT_FLOAT_EQ(graph.state(ids[0]).pos.x, 0.0f);
-    EXPECT_FLOAT_EQ(graph.state(ids[0]).pos.y, 0.0f);
+    // Node gets a thermal kick (r ≈ 0.01) instead of exact origin
+    EXPECT_NEAR(graph.state(ids[0]).pos.radius(), 0.01f, 1e-6f);
 }
 
 TEST_F(SchedulerFixture, MultipleWriteCommits) {

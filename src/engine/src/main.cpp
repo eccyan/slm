@@ -34,12 +34,26 @@ int main(int argc, char* argv[]) {
     uint32_t slab_size = 64 * 1024;
     uint32_t ctrl_size = 4096;
 
+    // Langevin SDE defaults (tuned for ~10 day archival lifecycle)
+    float lambda_decay = 5.0e-6f;
+    float noise_scale = 2.0e-4f;
+    float thermal_kick_radius = 0.01f;
+    float archive_threshold = 0.95f;
+
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg.starts_with("--shm-path=")) {
             shm_path = arg.substr(11);
         } else if (arg.starts_with("--db-path=")) {
             db_path = arg.substr(10);
+        } else if (arg.starts_with("--lambda-decay=")) {
+            lambda_decay = std::stof(arg.substr(15));
+        } else if (arg.starts_with("--noise-scale=")) {
+            noise_scale = std::stof(arg.substr(14));
+        } else if (arg.starts_with("--thermal-kick-radius=")) {
+            thermal_kick_radius = std::stof(arg.substr(22));
+        } else if (arg.starts_with("--archive-threshold=")) {
+            archive_threshold = std::stof(arg.substr(20));
         }
     }
 
@@ -63,10 +77,14 @@ int main(int argc, char* argv[]) {
     uint32_t slab_count = (shm_size - ctrl_size) / slab_size;
 
     std::cout << "SLMFS Engine starting...\n"
-              << "  shm_path:   " << shm_path << "\n"
-              << "  db_path:    " << db_path << "\n"
-              << "  slab_count: " << slab_count << "\n"
-              << "  slab_size:  " << slab_size << "\n";
+              << "  shm_path:            " << shm_path << "\n"
+              << "  db_path:             " << db_path << "\n"
+              << "  slab_count:          " << slab_count << "\n"
+              << "  slab_size:           " << slab_size << "\n"
+              << "  lambda_decay:        " << lambda_decay << "\n"
+              << "  noise_scale:         " << noise_scale << "\n"
+              << "  thermal_kick_radius: " << thermal_kick_radius << "\n"
+              << "  archive_threshold:   " << archive_threshold << "\n";
 
     // File-backed mmap: create/open a regular file instead of POSIX shm
     int shm_fd = open(shm_path.c_str(), O_CREAT | O_RDWR, 0666);
@@ -100,9 +118,10 @@ int main(int argc, char* argv[]) {
     slm::sheaf::CoboundaryOperator sheaf;
     slm::langevin::LangevinStepper langevin({
         .dt = 5.0f,
-        .lambda_decay = 0.01f,
-        .noise_scale = 0.001f,
-        .archive_threshold = 0.95f,
+        .lambda_decay = lambda_decay,
+        .noise_scale = noise_scale,
+        .archive_threshold = archive_threshold,
+        .thermal_kick_radius = thermal_kick_radius,
     });
     slm::persist::SqliteStore store(db_path);
 
