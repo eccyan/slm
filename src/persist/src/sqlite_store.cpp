@@ -197,8 +197,6 @@ std::vector<engine::MemoryGraph::NodeSnapshot> SqliteStore::retrieve_archived(
         -1, &stmt, nullptr);
 
     std::vector<engine::MemoryGraph::NodeSnapshot> all;
-    std::vector<std::vector<float>> mu_storage;
-    std::vector<std::vector<float>> sigma_storage;
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         engine::MemoryGraph::NodeSnapshot snap;
@@ -262,10 +260,14 @@ std::vector<engine::MemoryGraph::NodeSnapshot> SqliteStore::retrieve_archived(
 }
 
 void SqliteStore::reactivate_node(uint32_t node_id) {
+    // UPDATE instead of DELETE for crash-safety: if the engine crashes before
+    // the next checkpoint, the node still exists in the DB with active status.
     sqlite3_stmt* stmt = nullptr;
-    sqlite3_prepare_v2(db_,
-        "DELETE FROM memory_nodes WHERE id = ? AND status = 1",
+    int rc = sqlite3_prepare_v2(db_,
+        "UPDATE memory_nodes SET status = 0, pos_x = 0.0, pos_y = 0.0 "
+        "WHERE id = ? AND status = 1",
         -1, &stmt, nullptr);
+    if (rc != SQLITE_OK || !stmt) return;
     sqlite3_bind_int(stmt, 1, static_cast<int>(node_id));
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
