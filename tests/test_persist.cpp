@@ -294,7 +294,7 @@ TEST_F(PersistFixture, ReactivateNodeRemovesFromArchive) {
     ASSERT_EQ(before.size(), 1u);
 
     // Reactivate it
-    store.reactivate_node(id);
+    store.reactivate_node(id, 0.01f, 0.0f);
 
     // Verify it's gone from the archive
     auto after = store.retrieve_archived(query, metric, 10);

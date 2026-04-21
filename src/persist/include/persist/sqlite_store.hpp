@@ -29,7 +29,7 @@ public:
         uint32_t k) override;
 
     /// Remove an archived node (status=1) from the DB by id.
-    void reactivate_node(uint32_t node_id) override;
+    void reactivate_node(uint32_t node_id, float pos_x, float pos_y) override;
 
 private:
     sqlite3* db_{nullptr};

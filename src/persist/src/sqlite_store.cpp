@@ -259,16 +259,19 @@ std::vector<engine::MemoryGraph::NodeSnapshot> SqliteStore::retrieve_archived(
     return result;
 }
 
-void SqliteStore::reactivate_node(uint32_t node_id) {
-    // UPDATE instead of DELETE for crash-safety: if the engine crashes before
-    // the next checkpoint, the node still exists in the DB with active status.
+void SqliteStore::reactivate_node(uint32_t node_id, float pos_x, float pos_y) {
+    // Persist the thermal-kick coordinates so that if the engine crashes
+    // before the next checkpoint, the node isn't restored at origin (where
+    // LangevinStepper::step skips it, causing it to never drift/archive).
     sqlite3_stmt* stmt = nullptr;
     int rc = sqlite3_prepare_v2(db_,
-        "UPDATE memory_nodes SET status = 0, pos_x = 0.0, pos_y = 0.0 "
+        "UPDATE memory_nodes SET status = 0, pos_x = ?, pos_y = ? "
         "WHERE id = ? AND status = 1",
         -1, &stmt, nullptr);
     if (rc != SQLITE_OK || !stmt) return;
-    sqlite3_bind_int(stmt, 1, static_cast<int>(node_id));
+    sqlite3_bind_double(stmt, 1, static_cast<double>(pos_x));
+    sqlite3_bind_double(stmt, 2, static_cast<double>(pos_y));
+    sqlite3_bind_int(stmt, 3, static_cast<int>(node_id));
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }

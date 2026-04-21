@@ -227,7 +227,7 @@ void Scheduler::handle_read(uint32_t slab_idx) {
                 snap.access_count += 1;
                 snap.last_access = current_time();
                 graph_.insert_from_snapshot(snap);
-                persist_.reactivate_node(snap.id);
+                persist_.reactivate_node(snap.id, snap.pos_x, snap.pos_y);
             } else {
                 // Activate in-memory node: pull to center with thermal kick
                 langevin_.activate(
