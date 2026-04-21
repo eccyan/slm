@@ -223,6 +223,18 @@ For a fully hands-free experience, add a `SessionStart` hook to your `~/.claude/
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "COMMITS=$(git log --oneline --since=\"12 hours ago\" --no-merges 2>/dev/null | head -20); if [ -z \"$COMMITS\" ]; then exit 0; fi; BRANCH=$(git branch --show-current 2>/dev/null); REPO=$(basename \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null); SUMMARY=\"Session in ${REPO} (${BRANCH}): ${COMMITS}\"; echo \"$SUMMARY\" > ~/.agent_memory/active.md; COUNT=$(echo \"$COMMITS\" | wc -l | tr -d \" \"); jq -n --arg msg \"Saved session summary to SLMFS ($COUNT commits)\" '{\"systemMessage\": $msg}'",
+            "timeout": 5,
+            "statusMessage": "Saving learnings to SLMFS..."
+          }
+        ]
+      }
     ]
   }
 }
@@ -230,7 +242,14 @@ For a fully hands-free experience, add a `SessionStart` hook to your `~/.claude/
 
 > **Requires:** `jq` (`brew install jq` / `apt install jq`)
 
-When the hook fires, Claude sees the current working memory as part of its initial context — giving it continuity across sessions without any manual steps.
+The two hooks form a complete memory loop:
+
+| Hook | When | What it does |
+|------|------|-------------|
+| `SessionStart` | Session opens | Reads `active.md` and injects it as context |
+| `Stop` | Session ends | Writes recent commits as a session summary to `active.md` |
+
+This gives Claude continuity across sessions — it remembers what it did last time and picks up where it left off. The FUSE layer handles embedding and the Langevin physics ensures old memories naturally drift to the archive while recent work stays in focus.
 
 ### Observing the Brain
 
