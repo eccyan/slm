@@ -75,6 +75,11 @@ echo "learned something important" > ~/.agent_memory/active.md
 
 Before starting work, read `~/.agent_memory/active.md` to check for relevant context from prior sessions. When you learn something that would be useful in future sessions, write it to active.md.
 
+**Analyze brain-wave state** (read-only SQLite dashboard):
+```bash
+python -m slmfs analyze
+```
+
 ## Naming Conventions
 
 - C++ namespaces: `slm::slab`, `slm::metric`, `slm::langevin`, `slm::sheaf`, `slm::engine`, `slm::persist`
