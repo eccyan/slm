@@ -126,9 +126,9 @@ class SlmfsFS(Operations):
         return len(data)
 
     def create(self, path, mode, fi=None):
-        if path.startswith("/search/"):
-            raise FuseOSError(errno.EACCES)
-        raise FuseOSError(errno.ENOENT)
+        if path == "/active.md":
+            return 0  # allow shell redirects (cat/pbpaste > active.md)
+        raise FuseOSError(errno.EACCES)
 
     def _parse_heading_context(self, text: str) -> tuple[int, int]:
         lines = text.strip().split("\n")
