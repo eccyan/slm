@@ -27,6 +27,7 @@ public:
         float contradiction_threshold{0.5f};
         uint32_t search_top_k{10};
         float active_radius{0.3f};
+        float friction_penalty_radius{0.6f};
     };
 
     Scheduler(

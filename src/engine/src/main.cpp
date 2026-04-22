@@ -39,6 +39,7 @@ int main(int argc, char* argv[]) {
     float noise_scale = 2.0e-4f;
     float thermal_kick_radius = 0.01f;
     float archive_threshold = 0.95f;
+    float friction_penalty_radius = 0.6f;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -54,6 +55,8 @@ int main(int argc, char* argv[]) {
             thermal_kick_radius = std::stof(arg.substr(22));
         } else if (arg.starts_with("--archive-threshold=")) {
             archive_threshold = std::stof(arg.substr(20));
+        } else if (arg.starts_with("--friction-penalty-radius=")) {
+            friction_penalty_radius = std::stof(arg.substr(26));
         }
     }
 
@@ -84,7 +87,8 @@ int main(int argc, char* argv[]) {
               << "  lambda_decay:        " << lambda_decay << "\n"
               << "  noise_scale:         " << noise_scale << "\n"
               << "  thermal_kick_radius: " << thermal_kick_radius << "\n"
-              << "  archive_threshold:   " << archive_threshold << "\n";
+              << "  archive_threshold:   " << archive_threshold << "\n"
+              << "  friction_penalty_r:  " << friction_penalty_radius << "\n";
 
     // File-backed mmap: create/open a regular file instead of POSIX shm
     int shm_fd = open(shm_path.c_str(), O_CREAT | O_RDWR, 0666);
@@ -128,8 +132,12 @@ int main(int argc, char* argv[]) {
     store.load(graph);
     std::cout << "Loaded " << graph.size() << " nodes from " << db_path << "\n";
 
+    slm::engine::Scheduler::Config sched_config{};
+    sched_config.friction_penalty_radius = friction_penalty_radius;
+
     slm::engine::Scheduler scheduler(
-        slab, slab.cmd_queue(), graph, metric, sheaf, langevin, store, {}
+        slab, slab.cmd_queue(), graph, metric, sheaf, langevin, store,
+        sched_config
     );
 
     g_scheduler = &scheduler;

@@ -2,7 +2,9 @@
 #include <slab/header.hpp>
 #include <metric/gaussian_node.hpp>
 #include <algorithm>
+#include <cmath>
 #include <cstring>
+#include <numbers>
 #include <string>
 
 namespace slm::engine {
@@ -293,7 +295,15 @@ void Scheduler::process_tier2() {
                 for (auto sib_id : sibs_list) {
                     if (sib_id == node_id) continue;
                     if (actual_idx == neighbor_idx) {
-                        graph_.state(sib_id).pos = {0.0f, 0.93f};
+                        // Scatter superseded node isotropically at the
+                        // friction penalty radius, forming a halo around
+                        // working memory instead of clustering on one axis.
+                        std::uniform_real_distribution<float> angle(
+                            0.0f, 2.0f * std::numbers::pi_v<float>);
+                        float theta = angle(rng_);
+                        float r = config_.friction_penalty_radius;
+                        graph_.state(sib_id).pos = {
+                            r * std::cos(theta), r * std::sin(theta)};
                         break;
                     }
                     actual_idx++;
