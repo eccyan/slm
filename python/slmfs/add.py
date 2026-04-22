@@ -11,8 +11,8 @@ ingestion and restarts it afterward (requires launchctl on macOS
 or systemctl on Linux).
 """
 
-import os
 import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -24,37 +24,113 @@ from .embedder import MiniLMEmbedder
 from .init import parse_markdown, Chunk
 from .shm_client import ShmClient
 
+_PLIST_NAME = "com.eccyan.slmfs-fuse.plist"
+_SYSTEMD_UNIT = "slmfs-fuse"
+
+
+def _fuse_plist() -> Path:
+    return Path.home() / "Library/LaunchAgents" / _PLIST_NAME
+
+
+def _is_fuse_mounted(mount_point: str = "/.agent_memory") -> bool:
+    """Check if the FUSE mount is active."""
+    try:
+        result = subprocess.run(
+            ["mount"], capture_output=True, text=True, timeout=5,
+        )
+        return mount_point in result.stdout
+    except Exception:
+        return False
+
+
+def _wait_for_fuse_unmount(timeout: float = 10.0) -> bool:
+    """Poll until FUSE is no longer mounted."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not _is_fuse_mounted():
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def _wait_for_fuse_mount(timeout: float = 10.0) -> bool:
+    """Poll until FUSE is mounted."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _is_fuse_mounted():
+            return True
+        time.sleep(0.5)
+    return False
+
 
 def _stop_fuse() -> bool:
-    """Stop the FUSE service. Returns True if it was running."""
+    """Stop the FUSE service. Returns True on success."""
     if platform.system() == "Darwin":
-        plist = Path.home() / "Library/LaunchAgents/com.eccyan.slmfs-fuse.plist"
+        plist = _fuse_plist()
         if not plist.exists():
+            print("  WARNING: FUSE plist not found, skipping stop")
             return False
         result = subprocess.run(
             ["launchctl", "unload", str(plist)],
-            capture_output=True,
+            capture_output=True, text=True,
         )
-        return result.returncode == 0
-    else:
+        if result.returncode != 0:
+            print(f"  WARNING: launchctl unload failed: {result.stderr.strip()}")
+            return False
+        if not _wait_for_fuse_unmount():
+            print("  WARNING: FUSE did not unmount within timeout")
+            return False
+        return True
+    elif shutil.which("systemctl"):
         result = subprocess.run(
-            ["systemctl", "--user", "stop", "slmfs-fuse"],
-            capture_output=True,
+            ["systemctl", "--user", "stop", _SYSTEMD_UNIT],
+            capture_output=True, text=True,
         )
-        return result.returncode == 0
-
-
-def _start_fuse():
-    """Restart the FUSE service."""
-    if platform.system() == "Darwin":
-        plist = Path.home() / "Library/LaunchAgents/com.eccyan.slmfs-fuse.plist"
-        if plist.exists():
-            subprocess.run(["launchctl", "load", str(plist)], capture_output=True)
+        if result.returncode != 0:
+            print(f"  WARNING: systemctl stop failed: {result.stderr.strip()}")
+            return False
+        if not _wait_for_fuse_unmount():
+            print("  WARNING: FUSE did not unmount within timeout")
+            return False
+        return True
     else:
-        subprocess.run(
-            ["systemctl", "--user", "start", "slmfs-fuse"],
-            capture_output=True,
+        print("  WARNING: no service manager found (launchctl/systemctl)")
+        return False
+
+
+def _start_fuse() -> bool:
+    """Restart the FUSE service. Returns True on success."""
+    if platform.system() == "Darwin":
+        plist = _fuse_plist()
+        if not plist.exists():
+            print("  WARNING: FUSE plist not found, cannot restart")
+            return False
+        result = subprocess.run(
+            ["launchctl", "load", str(plist)],
+            capture_output=True, text=True,
         )
+        if result.returncode != 0:
+            print(f"  WARNING: launchctl load failed: {result.stderr.strip()}")
+            return False
+        if not _wait_for_fuse_mount():
+            print("  WARNING: FUSE did not mount within timeout")
+            return False
+        return True
+    elif shutil.which("systemctl"):
+        result = subprocess.run(
+            ["systemctl", "--user", "start", _SYSTEMD_UNIT],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            print(f"  WARNING: systemctl start failed: {result.stderr.strip()}")
+            return False
+        if not _wait_for_fuse_mount():
+            print("  WARNING: FUSE did not mount within timeout")
+            return False
+        return True
+    else:
+        print("  WARNING: no service manager found (launchctl/systemctl)")
+        return False
 
 
 def add_file(
@@ -123,12 +199,10 @@ def main():
         print("       python -m slmfs add --stop-fuse ~/docs/**/*.md")
         sys.exit(1)
 
-    fuse_was_running = False
+    fuse_stopped = False
     if stop_fuse:
         print("Stopping FUSE service...")
-        fuse_was_running = _stop_fuse()
-        if fuse_was_running:
-            time.sleep(1)  # wait for lock release
+        fuse_stopped = _stop_fuse()
 
     try:
         print(f"Connecting to engine via shm: {config.shm_path}")
@@ -145,9 +219,14 @@ def main():
         shm.close()
         print(f"Done. {total} chunks ingested into running engine.")
     finally:
-        if fuse_was_running:
+        if stop_fuse:
+            # Always attempt restart when --stop-fuse was requested,
+            # even if _stop_fuse failed (best-effort recovery).
             print("Restarting FUSE service...")
-            _start_fuse()
+            if not _start_fuse():
+                print("  ERROR: FUSE service failed to restart. "
+                      "Run manually: launchctl load ~/Library/LaunchAgents/"
+                      f"{_PLIST_NAME}")
 
 
 if __name__ == "__main__":
