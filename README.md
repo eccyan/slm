@@ -335,8 +335,9 @@ The Langevin physics parameters control how fast memories drift toward the archi
 | `--noise-scale` | `2e-4` | Brownian noise intensity. Higher = more random drift |
 | `--thermal-kick-radius` | `0.01` | Initial offset on activation (avoids origin singularity) |
 | `--archive-threshold` | `0.95` | Poincaré disk radius at which nodes are archived |
+| `--friction-penalty-radius` | `0.6` | Where contradicted nodes land after sheaf cohomology detection |
 
-With the defaults, an unaccessed memory takes ~10 days to reach the archive boundary (r=0.95). Accessing a memory resets it to the disk center. Tune `--lambda-decay` to control the "forgetfulness" of the agent's working memory.
+With the defaults, an unaccessed memory takes ~10 days to reach the archive boundary (r=0.95). Accessing a memory resets it to the disk center. Contradicted memories (detected by sheaf cohomology) are scattered isotropically at r=0.6, giving them ~5 days of grace before archival. Tune `--lambda-decay` to control the "forgetfulness" of the agent's working memory.
 
 ### Multi-Project Isolation
 

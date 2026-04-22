@@ -28,7 +28,8 @@ The engine binary is at `build/src/engine/slmfs_engine`. Run with:
 ```bash
 ./slmfs_engine --db-path=.slmfs/memory.db \
   [--lambda-decay=5e-6] [--noise-scale=2e-4] \
-  [--thermal-kick-radius=0.01] [--archive-threshold=0.95]
+  [--thermal-kick-radius=0.01] [--archive-threshold=0.95] \
+  [--friction-penalty-radius=0.6]
 ```
 
 ## Test
