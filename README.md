@@ -64,6 +64,7 @@ python/slmfs/
 +-- init.py         Offline "Day Zero" migration
 +-- add.py          Online bulk ingestion
 +-- analyze.py      Brain-wave dashboard (read-only SQLite)
++-- mcp_server.py   MCP server for Claude Code (read-only brain MRI)
 ```
 
 ## The Agent Experience
@@ -277,6 +278,32 @@ The hooks form a complete memory loop:
 | `PostToolUse` | After `git commit` with "spec", "plan", or "design" in message | Writes spec/plan details + file list to `active.md` |
 
 This gives Claude continuity across sessions — it remembers what it did last time and picks up where it left off. Spec and plan commits are captured automatically, so the next session knows what was designed before implementation begins. The FUSE layer handles embedding and the Langevin physics ensures old memories naturally drift to the archive while recent work stays in focus.
+
+#### MCP Server (Brain MRI)
+
+For deeper introspection, SLMFS provides an MCP server that gives Claude Code native tools to query the memory database. Unlike the FUSE mount (which triggers Memory Rehearsal), the MCP server is read-only — it observes without affecting the Langevin physics.
+
+Add `.mcp.json` to your project root:
+
+```json
+{
+  "mcpServers": {
+    "slmfs": {
+      "command": ".venv/bin/python",
+      "args": ["-m", "slmfs.mcp_server"],
+      "env": { "SLMFS_DB": "~/.slmfs/memory.db" }
+    }
+  }
+}
+```
+
+Available tools:
+
+| Tool | Description |
+|------|-------------|
+| `read_active` | Read working memory nodes (r < 0.3) — passive, no activation |
+| `search_memory` | Semantic search across all nodes (active + archived) with Fisher-Rao ranking |
+| `brain_status` | Compact dashboard: node counts, spatial distribution, friction ratio |
 
 ### Observing the Brain
 
