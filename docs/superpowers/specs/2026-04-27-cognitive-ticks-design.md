@@ -46,7 +46,7 @@ auto step(std::span<NodeState> nodes, uint64_t current_tick,
 
 **Euler-Maruyama scaling** (critical for burst correctness):
 - Effective drift step: `effective_dt = base_dt * delta_ticks`
-- Brownian noise: `effective_noise = base_noise_scale * sqrt(delta_ticks)`
+- Brownian noise: `noise_scale * sqrt(2 * g_inv * effective_dt)` — the `sqrt(delta_ticks)` scaling is captured inside `sqrt(effective_dt)`, not applied separately
 
 Without this scaling, a 100-tick burst produces the same displacement as a 1-tick event.
 

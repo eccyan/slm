@@ -31,8 +31,6 @@ std::vector<uint32_t> LangevinStepper::step(
 
     // Euler-Maruyama scaling by elapsed cognitive ticks
     float dt_eff = config_.dt * static_cast<float>(delta_ticks);
-    float noise_eff = config_.noise_scale
-                    * std::sqrt(static_cast<float>(delta_ticks));
 
     for (uint32_t i = 0; i < nodes.size(); ++i) {
         auto& node = nodes[i];
@@ -55,8 +53,8 @@ std::vector<uint32_t> LangevinStepper::step(
         float dx_drift = drift_mag * node.pos.x;
         float dy_drift = drift_mag * node.pos.y;
 
-        // Noise: sqrt(2 * g_inv * dt_eff) * noise_eff * xi
-        float noise_mag = noise_eff * std::sqrt(2.0f * g_inv * dt_eff);
+        // Noise: noise_scale * sqrt(2 * g_inv * dt_eff) * xi
+        float noise_mag = config_.noise_scale * std::sqrt(2.0f * g_inv * dt_eff);
         float dx_noise = noise_mag * noise_dist(rng);
         float dy_noise = noise_mag * noise_dist(rng);
 

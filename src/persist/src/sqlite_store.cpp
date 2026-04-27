@@ -33,6 +33,25 @@ void SqliteStore::exec(const char* sql) {
 }
 
 void SqliteStore::create_schema() {
+    // Detect legacy schema (last_access REAL → last_access_tick INTEGER).
+    // If the old column exists, drop the table and recreate with new schema.
+    sqlite3_stmt* pragma = nullptr;
+    sqlite3_prepare_v2(db_, "PRAGMA table_info(memory_nodes)", -1, &pragma, nullptr);
+    bool has_legacy_column = false;
+    while (sqlite3_step(pragma) == SQLITE_ROW) {
+        const char* col = reinterpret_cast<const char*>(sqlite3_column_text(pragma, 1));
+        if (col && std::string(col) == "last_access") {
+            has_legacy_column = true;
+            break;
+        }
+    }
+    sqlite3_finalize(pragma);
+
+    if (has_legacy_column) {
+        exec("DROP TABLE IF EXISTS memory_nodes");
+        exec("DROP TABLE IF EXISTS edges");
+    }
+
     exec(R"(
         CREATE TABLE IF NOT EXISTS memory_nodes (
             id           INTEGER PRIMARY KEY,
